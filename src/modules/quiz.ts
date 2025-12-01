@@ -547,9 +547,42 @@ class QuizModule {
    */
   backToQuiz(): void {
     this.resetQuizState();
+
+    // 重置UI界面的选中状态
+    this.resetUISelection();
+
     safeSetDisplay('quiz-start', 'block');
     safeSetDisplay('quiz-game', 'none');
     safeSetDisplay('quiz-result', 'none');
+  }
+
+  /**
+   * 重置UI界面的选中状态
+   */
+  private resetUISelection(): void {
+    // 重置测试类型选择卡片
+    const quizTypeCards = document.querySelectorAll('.quiz-type-card');
+    quizTypeCards.forEach((card) => {
+      card.classList.remove('selected');
+    });
+
+    // 重置难度选择按钮
+    const difficultyButtons = document.querySelectorAll('[data-difficulty]');
+    difficultyButtons.forEach((btn) => {
+      btn.classList.remove('selected');
+    });
+
+    // 恢复默认选中状态（中等难度）
+    const mediumButton = document.querySelector('[data-difficulty="medium"]') as HTMLElement;
+    if (mediumButton) {
+      mediumButton.classList.add('selected');
+    }
+
+    // 隐藏开始测试按钮
+    const startQuizBtn = document.getElementById('startQuizBtn');
+    if (startQuizBtn) {
+      (startQuizBtn as HTMLElement).style.display = 'none';
+    }
   }
 
   /**
@@ -663,8 +696,13 @@ class QuizModule {
       bestAccuracy: 0,
     };
 
-    localStorage.setItem('quizStats', JSON.stringify(emptyStats));
-    this.updateQuizStats();
+    saveStats(emptyStats);
+
+    // 强制更新统计数据显示
+    setTimeout(() => {
+      this.updateQuizStats();
+      this.displayAchievements();
+    }, 100);
 
     alert(
       i18n.getCurrentLanguage() === 'en'
