@@ -113,6 +113,30 @@ header {
   margin: 0;
 }
 
+.feedback-link {
+  margin-top: 8px;
+}
+
+.feedback-link a {
+  color: var(--pure-white);
+  text-decoration: none;
+  font-size: 12px;
+  opacity: 0.9;
+  transition: var(--transition);
+  padding: 4px 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: inline-block;
+}
+
+.feedback-link a:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
 header::before {
   content: '';
   position: absolute;

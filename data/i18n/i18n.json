@@ -395,6 +395,9 @@
         "initialization": "初始化失败，请刷新页面重试"
       },
       "backToTools": "返回工具列表"
+    },
+    "feedback": {
+      "link": "用户反馈"
     }
   },
   "en": {
@@ -811,6 +814,9 @@
         "initialization": "Initialization failed, please refresh the page and try again"
       },
       "backToTools": "Back to Tools"
+    },
+    "feedback": {
+      "link": "User Feedback"
     }
   }
 }
