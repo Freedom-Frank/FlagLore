@@ -3,10 +3,11 @@
  * 负责国旗记忆训练、分类管理和学习进度跟踪
  */
 
-import type { Country } from '../types';
+import type { Country, RichLearningSession } from '../types';
+import { LearningMode } from '../types';
 import { appState } from '../lib/state';
 import { i18n } from '../lib/i18n-core';
-import { getFlagImageUrl } from '../lib/data-loader';
+import { getFlagImageUrl, RichModeHandler } from '../lib/data-loader';
 
 /**
  * 记忆进度数据
@@ -100,6 +101,11 @@ class MemoryModule {
   // 当前分类
   private currentCategory: string | null = null;
 
+  // 丰富模式相关
+  private currentLearningMode: LearningMode = LearningMode.QUICK;
+  private richModeHandler: RichModeHandler | null = null;
+  private onRichModeCompleteHandler: ((e: Event) => void) | null = null;
+
   /**
    * 初始化记忆训练模块
    */
@@ -136,6 +142,14 @@ class MemoryModule {
     } catch (error) {
       console.warn('加载进度数据失败:', error);
     }
+  }
+
+  /**
+   * 公开的进度重新加载方法（供外部调用）
+   */
+  public reloadProgress(): void {
+    this.loadProgress();
+    this.updateMemoryStats();
   }
 
   /**
@@ -548,6 +562,9 @@ class MemoryModule {
       });
     }
 
+    // 初始化时设置正确的按钮状态
+    this.setLearningMode(this.currentLearningMode);
+
     // 清除学习进度按钮
     const clearMemoryProgressBtn = document.getElementById('clearMemoryProgressBtn');
     if (clearMemoryProgressBtn) {
@@ -558,6 +575,60 @@ class MemoryModule {
         this.clearMemoryProgress();
       });
     }
+
+    // 模式选择按钮
+    const quickModeBtn = document.getElementById('quickModeBtn');
+    const richModeBtn = document.getElementById('richModeBtn');
+
+    if (quickModeBtn) {
+      quickModeBtn.addEventListener('click', () => {
+        this.setLearningMode(LearningMode.QUICK);
+      });
+    }
+
+    if (richModeBtn) {
+      richModeBtn.addEventListener('click', () => {
+        this.setLearningMode(LearningMode.RICH);
+      });
+    }
+  }
+
+  /**
+   * 设置学习模式
+   */
+  private setLearningMode(mode: LearningMode): void {
+    this.currentLearningMode = mode;
+
+    // 更新按钮状态
+    const quickModeBtn = document.getElementById('quickModeBtn');
+    const richModeBtn = document.getElementById('richModeBtn');
+    const modeDescription = document.getElementById('modeDescription');
+
+    if (quickModeBtn && richModeBtn) {
+      if (mode === LearningMode.QUICK) {
+        quickModeBtn.classList.add('active');
+        richModeBtn.classList.remove('active');
+        // 更新模式描述
+        if (modeDescription) {
+          modeDescription.setAttribute('data-i18n', 'memory.quickModeDescription');
+        }
+      } else {
+        quickModeBtn.classList.remove('active');
+        richModeBtn.classList.add('active');
+        // 更新模式描述
+        if (modeDescription) {
+          modeDescription.setAttribute('data-i18n', 'memory.richModeDescription');
+        }
+      }
+    }
+
+    // 触发国际化更新以确保描述文字正确
+    setTimeout(() => {
+      i18n.updateDOM();
+    }, 50);
+
+    // 保存模式选择
+    localStorage.setItem('selectedLearningMode', mode);
   }
 
   /**
@@ -567,19 +638,25 @@ class MemoryModule {
     const category = this.categories[categoryName];
     if (!category) return;
 
-    // 一次学习完整个分类：未学习的优先，然后是已学习的（均打乱顺序）
-    const unlearned = category.countries.filter((code) => !this.progress[code]?.learned);
-    const learned = category.countries.filter((code) => this.progress[code]?.learned);
-    const orderedAll = this.shuffle(unlearned).concat(this.shuffle(learned));
+    // 根据当前学习模式开始学习
+    if (this.currentLearningMode === LearningMode.RICH) {
+      this.startRichMode(categoryName);
+    } else {
+      // 快速模式的原有逻辑
+      // 一次学习完整个分类：未学习的优先，然后是已学习的（均打乱顺序）
+      const unlearned = category.countries.filter((code) => !this.progress[code]?.learned);
+      const learned = category.countries.filter((code) => this.progress[code]?.learned);
+      const orderedAll = this.shuffle(unlearned).concat(this.shuffle(learned));
 
-    this.currentFlags = orderedAll;
-    this.currentIndex = 0;
-    this.currentCategory = categoryName;
-    const categoryLearningText = i18n.t('memory.categoryLearning');
-    this.currentSession.sessionType = categoryLearningText + categoryName;
+      this.currentFlags = orderedAll;
+      this.currentIndex = 0;
+      this.currentCategory = categoryName;
+      const categoryLearningText = i18n.t('memory.categoryLearning');
+      this.currentSession.sessionType = categoryLearningText + categoryName;
 
-    // 先展示预览页，用户点击"开始测试"后再开始会话
-    this.showPreviewPage();
+      // 先展示预览页，用户点击"开始测试"后再开始会话
+      this.showPreviewPage();
+    }
   }
 
   /**
@@ -946,12 +1023,21 @@ class MemoryModule {
     if (this.currentIndex < 0 || this.currentIndex >= this.currentFlags.length) return;
 
     const code = this.currentFlags[this.currentIndex];
-    const now = new Date().toISOString();
+    this.recordFlagLearned(code);
+  }
 
-    const existing = this.progress[code] || ({} as MemoryProgress);
+  /**
+   * 记录指定国旗为已学习（通用方法，供丰富模式等外部调用）
+   */
+  public recordFlagLearned(countryCode: string): void {
+    if (!countryCode) return;
+
+    const now = new Date().toISOString();
+    const existing = this.progress[countryCode] || ({} as MemoryProgress);
     const wasLearned = !!existing.learned;
 
-    this.progress[code] = {
+    // 更新学习进度
+    this.progress[countryCode] = {
       learned: true,
       firstLearnedAt: existing.firstLearnedAt || now,
       lastLearnedAt: now,
@@ -959,16 +1045,22 @@ class MemoryModule {
     };
 
     // 会话内统计仅在首次学会时+1
-    if (!wasLearned) {
+    if (!wasLearned && this.currentSession.startTime) {
       this.currentSession.flagsStudied = (this.currentSession.flagsStudied || 0) + 1;
     }
 
-    // 保存并更新概览/分类进度
+    // 立即保存进度
     this.saveProgress();
+
+    // 更新分类进度（如果有当前分类）
     if (this.currentCategory) {
       this.updateCategoryProgress(this.currentCategory);
     }
+
+    // 更新统计显示
     this.updateMemoryStats();
+
+    console.log(`📚 记录学习进度: ${countryCode} (首次学习: ${!wasLearned})`);
   }
 
   /**
@@ -1511,6 +1603,190 @@ class MemoryModule {
   }
 
   /**
+   * 开始丰富模式学习
+   */
+  private startRichMode(categoryName: string): void {
+    this.currentLearningMode = LearningMode.RICH;
+
+    const category = this.categories[categoryName];
+    if (!category) return;
+
+    // 获取分类下的所有国家
+    const allCountries = appState.getState().allCountries;
+    const categoryCountries = allCountries.filter(country =>
+      category.countries.includes(country.code)
+    );
+
+    // 创建丰富模式学习会话数据
+    const session: RichLearningSession = {
+      mode: LearningMode.RICH,
+      category: {
+        id: categoryName,
+        name: this.getLocalizedCategoryName(categoryName, category),
+        continent: category.continentKey,
+        groupNumber: category.groupNumber || undefined,
+        countries: categoryCountries,
+        learned: category.countries.filter(code => this.progress[code]?.learned).length,
+        total: category.countries.length
+      },
+      countries: categoryCountries, // 所有国家，RichModeHandler会进行分组
+      connections: [],
+      startTime: Date.now(),
+      correctConnections: 0,
+      totalAttempts: 0,
+      selectedDescription: null,
+      completedPairs: []
+    };
+
+    // 显示丰富模式学习界面
+    this.showRichModeLearning(session);
+  }
+
+  /**
+   * 显示丰富模式学习界面
+   */
+  private showRichModeLearning(session: RichLearningSession): void {
+    // 使用丰富模式模板
+    const richTemplate = document.getElementById('rich-mode-template') as HTMLTemplateElement;
+    if (!richTemplate) {
+      console.error('Rich mode template not found');
+      return;
+    }
+
+    // 隐藏记忆训练主界面
+    const memorySection = document.getElementById('memory-section');
+    if (memorySection) (memorySection as HTMLElement).style.display = 'none';
+
+    // 创建或获取丰富模式容器
+    let richSection = document.getElementById('rich-mode-section');
+    if (!richSection) {
+      richSection = document.createElement('div');
+      richSection.id = 'rich-mode-section';
+      const contentDiv = document.querySelector('.content');
+      if (contentDiv) contentDiv.appendChild(richSection);
+    }
+
+    richSection.style.display = 'block';
+    const templateContent = richTemplate.content.cloneNode(true) as DocumentFragment;
+    richSection.innerHTML = '';
+    richSection.appendChild(templateContent);
+
+    // 设置会话信息
+    const sessionTypeEl = document.querySelector('.session-type');
+    if (sessionTypeEl) {
+      sessionTypeEl.textContent = `${session.category.name} - 丰富模式`;
+    }
+
+    const progressTextEl = document.querySelector('.progress-text');
+    if (progressTextEl) {
+      progressTextEl.textContent = `0/${session.countries.length}`;
+    }
+
+    const progressFillEl = document.querySelector('.rich-progress-fill') as HTMLElement;
+    if (progressFillEl) {
+      progressFillEl.style.width = '0%';
+    }
+
+    // 绑定返回按钮事件
+    const backBtn = document.getElementById('backToMemoryFromRichBtn');
+    if (backBtn) {
+      backBtn.addEventListener('click', () => {
+        this.exitRichMode();
+      });
+    }
+
+    // 创建丰富模式处理器
+    this.richModeHandler = new RichModeHandler(session);
+
+    // 监听丰富模式完成事件
+    this.onRichModeCompleteHandler = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      this.onRichModeComplete(customEvent.detail);
+    };
+    document.addEventListener('richModeComplete', this.onRichModeCompleteHandler);
+
+    // 触发国际化更新
+    setTimeout(() => {
+      i18n.updateDOM();
+    }, 50);
+  }
+
+  /**
+   * 丰富模式完成处理
+   */
+  private onRichModeComplete(detail: { session: RichLearningSession; results: any[] }): void {
+    const { results } = detail;
+
+    // 更新进度数据
+    results.forEach((result: any) => {
+      if (result.isCorrect) {
+        const existing = this.progress[result.country] || {
+          learned: false,
+          firstLearnedAt: '',
+          lastLearnedAt: '',
+          learnCount: 0
+        };
+
+        const now = new Date().toISOString();
+        this.progress[result.country] = {
+          learned: true,
+          firstLearnedAt: existing.firstLearnedAt || now,
+          lastLearnedAt: now,
+          learnCount: existing.learnCount + 1
+        };
+      }
+    });
+
+    // 保存进度
+    this.saveProgress();
+
+    // 更新分类进度
+    if (this.currentCategory) {
+      this.updateCategoryProgress(this.currentCategory);
+    }
+
+    // 显示完成消息
+    const correctCount = results.filter((r: any) => r.isCorrect).length;
+    const totalCount = results.length;
+    const accuracy = Math.round((correctCount / totalCount) * 100);
+
+    this.showMessage(`🎉 丰富模式完成！正确率: ${correctCount}/${totalCount} (${accuracy}%)`);
+
+    // 3秒后返回记忆训练主界面
+    setTimeout(() => {
+      this.exitRichMode();
+    }, 1000);
+  }
+
+  /**
+   * 退出丰富模式
+   */
+  private exitRichMode(): void {
+    // 清理丰富模式处理器
+    if (this.richModeHandler) {
+      this.richModeHandler.destroy();
+      this.richModeHandler = null;
+    }
+
+    // 移除事件监听器
+    if (this.onRichModeCompleteHandler) {
+      document.removeEventListener('richModeComplete', this.onRichModeCompleteHandler);
+      this.onRichModeCompleteHandler = null;
+    }
+
+    // 隐藏丰富模式界面
+    const richSection = document.getElementById('rich-mode-section');
+    if (richSection) richSection.style.display = 'none';
+
+    // 显示记忆训练主界面
+    const memorySection = document.getElementById('memory-section');
+    if (memorySection) memorySection.style.display = 'block';
+
+    // 重新显示记忆训练内容
+    this.showMemory();
+  }
+
+  /**
    * 清理模块（切换到其他模块时调用）
    */
   cleanup(): void {
@@ -1531,6 +1807,22 @@ class MemoryModule {
     if (studySection) {
       studySection.style.display = 'none';
     }
+
+    // 清理丰富模式
+    if (this.richModeHandler) {
+      this.richModeHandler.destroy();
+      this.richModeHandler = null;
+    }
+
+    // 隐藏其他可能的界面
+    const richSection = document.getElementById('rich-mode-section');
+    if (richSection) richSection.style.display = 'none';
+
+    // 移除事件监听器
+    if (this.onRichModeCompleteHandler) {
+      document.removeEventListener('richModeComplete', this.onRichModeCompleteHandler);
+      this.onRichModeCompleteHandler = null;
+    }
   }
 }
 
@@ -1547,6 +1839,12 @@ export function initMemoryModule(): void {
   // 防止重复初始化
   if (memoryModuleInitialized) {
     return;
+  }
+
+  // 加载保存的学习模式
+  const savedMode = localStorage.getItem('selectedLearningMode') as LearningMode;
+  if (savedMode) {
+    memoryModule['currentLearningMode'] = savedMode;
   }
 
   memoryModule.init();

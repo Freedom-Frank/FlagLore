@@ -811,7 +811,6 @@
       </button>
     </template>
 
-  
     <template id="study-flag-template">
       <div
         style="
@@ -1030,6 +1029,60 @@
 
           <!-- 开始学习按钮 -->
           <div style="margin-top: 25px; text-align: center">
+            <!-- 模式选择器 -->
+            <div style="margin-bottom: 20px;">
+              <div style="display: flex; gap: 15px; justify-content: center; align-items: center; margin-bottom: 15px;">
+                <span style="color: white; font-size: 16px; font-weight: 500;" data-i18n="memory.selectLearningMode">选择学习模式:</span>
+              </div>
+              <div style="display: flex; gap: 15px; justify-content: center;">
+                <button
+                  id="quickModeBtn"
+                  class="mode-btn"
+                  style="
+                    padding: 12px 24px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-weight: 600;
+                    transition: all 0.3s;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    background: rgba(255, 255, 255, 0.2);
+                    color: white;
+                    border: 2px solid rgba(255, 255, 255, 0.3);
+                  "
+                >
+                  <span>⚡</span>
+                  <span data-i18n="memory.quickMode">快速模式</span>
+                </button>
+                <button
+                  id="richModeBtn"
+                  class="mode-btn"
+                  style="
+                    background: rgba(255, 255, 255, 0.2);
+                    color: white;
+                    border: 2px solid rgba(255, 255, 255, 0.3);
+                    padding: 12px 24px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-weight: 600;
+                    transition: all 0.3s;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                  "
+                >
+                  <span>🧩</span>
+                  <span data-i18n="memory.richMode">丰富模式</span>
+                </button>
+              </div>
+              <div style="margin-top: 10px; font-size: 13px; color: rgba(255, 255, 255, 0.7); text-align: center;">
+                <span id="modeDescription" data-i18n="memory.quickModeDescription">快速浏览和记忆国旗，适合复习和快速学习</span>
+              </div>
+            </div>
+
             <button
               id="startLearningBtn"
               class="start-learning-btn"
@@ -1287,6 +1340,117 @@
           z-index: 999;
         "
       ></div>
+    </template>
+
+    <!-- 丰富模式模板 -->
+    <template id="rich-mode-template">
+      <div class="rich-mode-container">
+        <!-- 顶部进度条 -->
+        <div class="rich-progress-header">
+          <div class="rich-progress-info">
+            <button id="backToMemoryFromRichBtn" class="back-btn" data-i18n="memory.backToMemory" style="
+              background: rgba(255, 255, 255, 0.2);
+              color: white;
+              border: 1px solid rgba(255, 255, 255, 0.3);
+              padding: 8px 16px;
+              border-radius: 6px;
+              cursor: pointer;
+              font-size: 14px;
+              font-weight: 500;
+              transition: all 0.3s;
+              margin-right: 15px;
+            ">← 返回记忆训练</button>
+            <span class="session-type">丰富模式</span>
+            <span class="progress-text">0/0</span>
+          </div>
+          <div class="rich-progress-time">⏱️ <span class="session-time">00:00</span></div>
+        </div>
+        <div class="rich-progress-bar">
+          <div class="rich-progress-fill" style="width: 0%"></div>
+        </div>
+
+        <!-- 主要内容区域 -->
+        <div class="rich-content">
+          <!-- 左侧描述区域 -->
+          <div class="descriptions-panel">
+            <!-- 描述卡片将在这里动态生成 -->
+          </div>
+
+          <!-- 连线画布 -->
+          <svg class="connection-canvas" id="connectionCanvas">
+            <!-- 连线动态绘制 -->
+          </svg>
+
+            <!-- 右侧国旗区域 -->
+            <div class="flags-panel">
+              <!-- 国旗卡片将在这里动态生成 -->
+            </div>
+        </div>
+
+        <!-- 底部操作按钮 -->
+        <div class="rich-action-bar">
+          <button class="rich-btn-check" id="checkAnswersBtn" data-i18n="memory.checkAnswers">
+            检查答案
+          </button>
+          <button class="rich-btn-reset" id="resetConnectionsBtn" data-i18n="memory.resetConnections">
+            重置连线
+          </button>
+          <button class="rich-btn-continue" id="continueGroupBtn" style="display: none;">
+            继续下一组
+          </button>
+          <button class="rich-btn-complete" id="completeLearningBtn" data-i18n="memory.completeLearning">
+            完成学习
+          </button>
+        </div>
+      </div>
+    </template>
+
+    <!-- 模式选择模板 -->
+    <template id="mode-selection-template">
+      <div class="mode-selection-container">
+        <div class="mode-selection-header">
+          <h2 data-i18n="memory.selectMode">选择学习模式</h2>
+          <p data-i18n="memory.modeDescription">选择适合你的学习方式</p>
+        </div>
+
+        <div class="mode-selection-grid">
+          <!-- 快速模式卡片 -->
+          <div class="mode-card" data-mode="quick">
+            <div class="mode-icon">⚡</div>
+            <h3 data-i18n="memory.quickMode">快速模式</h3>
+            <p data-i18n="memory.quickModeDescription">快速浏览和记忆国旗，适合复习和快速学习</p>
+            <div class="mode-features">
+              <div class="feature-item">🚀 逐个展示国旗</div>
+              <div class="feature-item">🎯 "知道"/"不知道"快速判断</div>
+              <div class="feature-item">📊 实时进度跟踪</div>
+            </div>
+            <button class="mode-select-btn btn-primary" data-i18n="memory.startQuickMode">
+              开始快速模式
+            </button>
+          </div>
+
+          <!-- 丰富模式卡片 -->
+          <div class="mode-card" data-mode="rich">
+            <div class="mode-icon">🧩</div>
+            <h3 data-i18n="memory.richMode">丰富模式</h3>
+            <p data-i18n="memory.richModeDescription">通过国旗描述匹配对应的国旗，深度理解国旗特征</p>
+            <div class="mode-features">
+              <div class="feature-item">📝 详细特征描述</div>
+              <div class="feature-item">🔗 连线匹配交互</div>
+              <div class="feature-item">🎨 视觉化学习体验</div>
+            </div>
+            <button class="mode-select-btn btn-primary" data-i18n="memory.startRichMode">
+              开始丰富模式
+            </button>
+          </div>
+        </div>
+
+        <div class="mode-selection-actions">
+          <button class="btn-secondary" id="backToMemoryBtn" data-i18n="memory.backToMemory">
+            返回
+          </button>
+        </div>
+      </div>
     </template>
 
     <!-- 预览项模板 -->

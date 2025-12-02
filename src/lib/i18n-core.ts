@@ -328,7 +328,7 @@ export class UnifiedI18n {
       if (!key) return;
 
       const translation = this.t(key);
-      if (translation && translation !== key) {
+      if (translation) {
         // 检查是否是需要HTML渲染的理念阐释内容
         if (
           key.startsWith('welcome.philosophy.') ||

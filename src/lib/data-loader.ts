@@ -246,3 +246,6 @@ export function isFlagFeaturesLoaded(): boolean {
 export function clearFlagFeaturesCache(): void {
   flagFeaturesCache = null;
 }
+
+// 重新导出RichModeHandler
+export { RichModeHandler } from './rich-mode-handler';

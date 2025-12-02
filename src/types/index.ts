@@ -99,6 +99,12 @@ export type FeatureKey =
 
 // ========== 记忆训练相关类型 ==========
 
+/** 学习模式枚举 */
+export enum LearningMode {
+  QUICK = 'quick',      // 快速模式（现有）
+  RICH = 'rich'         // 丰富模式（新增）
+}
+
 /** 学习进度数据 */
 export interface LearningProgress {
   [countryCode: string]: {
@@ -106,6 +112,46 @@ export interface LearningProgress {
     lastStudied: number; // 时间戳
     reviewCount: number;
   };
+}
+
+/** 连线状态接口 */
+export interface ConnectionState {
+  /** 国家代码 */
+  country: string;
+  /** 描述内容 */
+  description: string;
+  /** 连接到的国家代码 */
+  connectedTo: string | null;
+  /** 是否正确 */
+  isCorrect: boolean;
+}
+
+/** 丰富模式学习会话数据 */
+export interface RichLearningSession {
+  /** 学习模式 */
+  mode: LearningMode.RICH;
+  /** 分类数据 */
+  category: MemoryCategory;
+  /** 国家列表 */
+  countries: Country[];
+  /** 连接状态 */
+  connections: ConnectionState[];
+  /** 开始时间 */
+  startTime: number;
+  /** 结束时间 */
+  endTime?: number;
+  /** 正确连接数 */
+  correctConnections: number;
+  /** 总尝试次数 */
+  totalAttempts: number;
+  /** 当前选择的描述 */
+  selectedDescription: string | null;
+  /** 已连接的配对 */
+  completedPairs: Array<{
+    description: string;
+    flag: string;
+    isCorrect: boolean;
+  }>;
 }
 
 /** 记忆训练分类 */
@@ -309,7 +355,25 @@ declare global {
     t?: (key: string, params?: TranslationParams) => string;
     filteredCountries?: Country[];
     enhancedMemorySystem?: any;
+    CODE_DESC?: Record<string, string>;
+    richModeHandler?: RichModeHandler;
   }
+}
+
+/** 丰富模式处理器类声明 */
+export declare class RichModeHandler {
+  connections: Map<string, string>;
+  session: RichLearningSession;
+  isDragging: boolean;
+
+  constructor(session: RichLearningSession);
+
+  handleDescriptionClick(countryCode: string): void;
+  handleFlagClick(countryCode: string): void;
+  validateConnections(): ConnectionState[];
+  resetConnections(): void;
+  completeSession(): void;
+  render(): void;
 }
 
 // ========== 导出座位排位相关类型 ==========
