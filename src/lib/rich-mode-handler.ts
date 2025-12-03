@@ -13,6 +13,7 @@ import { getFlagImageUrl } from './data-loader';
 export class RichModeHandler {
   private connections: Map<string, string> = new Map();
   private selectedDescription: string | null = null;
+  private selectedFlag: string | null = null; // 新增：支持先选国旗再选描述
   private container: HTMLElement | null = null;
   private session: RichLearningSession;
   private timer: number | null = null;
@@ -66,29 +67,25 @@ export class RichModeHandler {
    * 检查当前组答案并继续到下一组
    */
   private checkAndContinue(): void {
-    // 检查当前组的答案
-    this.checkAnswers();
+    // 检查当前组的答案（不显示弹窗）
+    this.checkAnswers(false);
 
-    // 延迟后继续到下一组
-    setTimeout(() => {
-      if (this.hasNextGroup()) {
-        this.nextGroup();
-      } else {
-        // 没有下一组了，标记整个分类完成
-        this.isCategoryCompleted = true;
+    // 获取检查结果
+    const results = this.validateConnections();
+    const isAllCorrect = results.every(result => result.isCorrect);
 
-        // 提交所有正确连接的学习进度
-        this.correctConnections.forEach(countryCode => {
-          this.commitLearningProgress(countryCode);
-        });
-
-        // 显示完成消息
-        this.showCategoryCompleteMessage(
-          this.validateConnections().filter(r => r.isCorrect).length,
-          this.validateConnections().length
-        );
-      }
-    }, 2000); // 2秒延迟，让用户看到检查结果
+    if (isAllCorrect) {
+      // 全部正确，延迟0.5秒后自动跳转到下一组
+      setTimeout(() => {
+        if (this.hasNextGroup()) {
+          this.nextGroup();
+        } else {
+          // 没有下一组了，标记整个分类完成
+          this.completeCategory();
+        }
+      }, 500);
+    }
+    // 如果有错误，不跳转，让用户重新连线
   }
 
   
@@ -263,6 +260,22 @@ export class RichModeHandler {
       return;
     }
 
+    // 如果已经选中了国旗，创建连接
+    if (this.selectedFlag) {
+      console.log(`🔗 通过描述点击创建连接: ${countryCode} -> ${this.selectedFlag}`);
+      this.createConnection(countryCode, this.selectedFlag);
+
+      // 清除选择状态
+      this.selectedFlag = null;
+      this.container?.querySelectorAll('.rich-flag-card.selected').forEach(element => {
+        element.classList.remove('selected');
+      });
+
+      this.updateProgress();
+      this.checkAndAutoNext();
+      return;
+    }
+
     // 选中新的描述
     card.classList.add('selected');
     this.selectedDescription = countryCode;
@@ -289,22 +302,36 @@ export class RichModeHandler {
       }
     }
 
-    // 如果没有选中的描述，不能创建连接
-    if (!this.selectedDescription) return;
-
-    // 创建新连接
-    this.createConnection(this.selectedDescription, countryCode);
-
-    // 清除选择状态
-    this.selectedDescription = null;
-    this.container?.querySelectorAll('.description-card.selected').forEach(element => {
+    // 清除之前的选择
+    this.container?.querySelectorAll('.rich-flag-card.selected').forEach(element => {
       element.classList.remove('selected');
     });
 
-    this.updateProgress();
+    // 如果点击的是已选中的国旗，则取消选择
+    if (this.selectedFlag === countryCode) {
+      this.selectedFlag = null;
+      return;
+    }
 
-    // 检查是否完成当前组的所有连接
-    this.checkAndAutoNext();
+    // 如果已经选中了描述，创建连接
+    if (this.selectedDescription) {
+      console.log(`🔗 通过国旗点击创建连接: ${this.selectedDescription} -> ${countryCode}`);
+      this.createConnection(this.selectedDescription, countryCode);
+
+      // 清除选择状态
+      this.selectedDescription = null;
+      this.container?.querySelectorAll('.description-card.selected').forEach(element => {
+        element.classList.remove('selected');
+      });
+
+      this.updateProgress();
+      this.checkAndAutoNext();
+      return;
+    }
+
+    // 选中新的国旗
+    card.classList.add('selected');
+    this.selectedFlag = countryCode;
   }
 
   /**
@@ -333,24 +360,56 @@ export class RichModeHandler {
    * 创建连接
    */
   private createConnection(descriptionCode: string, flagCode: string): void {
-    // 创建新连接（这里不应该有重复连接，因为点击时已经处理了）
+    // 检查是否已经存在连接，如果存在则先移除
+    const existingConnection = this.connections.get(descriptionCode);
+    if (existingConnection) {
+      console.log(`⚠️ 发现重复连接: ${descriptionCode} 已连接到 ${existingConnection}，将被替换为 ${flagCode}`);
+      this.removeConnection(descriptionCode);
+    }
+
+    // 检查目标国旗是否已被其他描述连接
+    for (const [descCode, connectedFlagCode] of Array.from(this.connections.entries())) {
+      if (connectedFlagCode === flagCode && descCode !== descriptionCode) {
+        console.log(`⚠️ 国旗冲突: ${flagCode} 已被 ${descCode} 连接，将先移除原连接`);
+        this.removeConnection(descCode);
+        break;
+      }
+    }
+
+    // 创建新连接
     this.connections.set(descriptionCode, flagCode);
 
-    // 更新UI状态
-    const descCard = this.container?.querySelector(`.description-card[data-country="${descriptionCode}"]`);
-    const flagCard = this.container?.querySelector(`.rich-flag-card[data-country="${flagCode}"]`);
+    console.log(`🔗 创建连接: ${descriptionCode} -> ${flagCode}`);
+
+    // 添加连接成功的视觉反馈
+    const descCard = this.container?.querySelector(`.description-card[data-country="${descriptionCode}"]`) as HTMLElement;
+    const flagCard = this.container?.querySelector(`.rich-flag-card[data-country="${flagCode}"]`) as HTMLElement;
 
     if (descCard) {
       descCard.classList.add('selected');
+      // 添加短暂的动画效果
+      descCard.style.transform = 'scale(1.05)';
+      setTimeout(() => {
+        if (descCard) descCard.style.transform = '';
+      }, 200);
     }
+
     if (flagCard) {
       flagCard.classList.add('selected');
+      // 添加短暂的动画效果
+      flagCard.style.transform = 'scale(1.05)';
+      setTimeout(() => {
+        if (flagCard) flagCard.style.transform = '';
+      }, 200);
     }
 
     // 在大屏幕上绘制连线
     if (window.innerWidth > 1024) {
       this.drawConnection(descriptionCode, flagCode);
     }
+
+    // 可选：播放连接成功的声音效果
+    this.playConnectionSound();
   }
 
   /**
@@ -394,6 +453,8 @@ export class RichModeHandler {
     const flagCode = this.connections.get(descriptionCode);
     if (!flagCode) return;
 
+    console.log(`🔌 移除连接: ${descriptionCode} -> ${flagCode}`);
+
     // 移除SVG连线
     const canvasElement = this.container?.querySelector('#connectionCanvas') as SVGElement;
     const line = canvasElement?.querySelector(`line[data-from="${descriptionCode}"]`);
@@ -434,13 +495,15 @@ export class RichModeHandler {
     });
 
     this.selectedDescription = null;
+    this.selectedFlag = null; // 同时清除国旗选择状态
     this.updateProgress();
   }
 
   /**
    * 检查答案
+   * @param showMessage 是否显示结果弹窗，默认false（不显示）
    */
-  private checkAnswers(): void {
+  private checkAnswers(showMessage: boolean = false): void {
     const results = this.validateConnections();
     let correctCount = 0;
 
@@ -466,8 +529,10 @@ export class RichModeHandler {
       }
     });
 
-    // 显示结果
-    this.showCheckResults(correctCount, results.length);
+    // 只有明确要求时才显示结果弹窗
+    if (showMessage) {
+      this.showCheckResults(correctCount, results.length);
+    }
 
     // 同步学习进度
     this.syncLearningProgress();
@@ -521,7 +586,11 @@ export class RichModeHandler {
    */
   private showCategoryCompleteMessage(correctCount: number, totalCount: number): void {
     const accuracy = Math.round((correctCount / totalCount) * 100);
+    const hasMoreCategories = this.checkIfHasMoreCategories();
+
     const message = `🎉 恭喜完成本分类学习！\n正确率: ${correctCount}/${totalCount} (${accuracy}%)`;
+    const title = hasMoreCategories ? '分类学习完成！' : '🎊 恭喜完成全部分类学习！';
+    const subtitle = hasMoreCategories ? '学习进度已自动保存' : '您已经掌握了所有国家的国旗！';
 
     // 创建完成提示
     const completeDiv = document.createElement('div');
@@ -539,12 +608,9 @@ export class RichModeHandler {
     completeDiv.style.textAlign = 'center';
     completeDiv.style.maxWidth = '400px';
 
-    completeDiv.innerHTML = `
-      <div style="font-size: 3rem; margin-bottom: 16px;">🎉</div>
-      <h3 style="margin: 0 0 16px 0; font-size: 1.5rem;">分类学习完成！</h3>
-      <p style="margin: 0 0 24px 0; font-size: 1.1rem; line-height: 1.5;">${message}</p>
-      <p style="margin: 0 0 24px 0; font-size: 0.9rem; opacity: 0.9;">学习进度已自动保存</p>
-      <button class="btn" style="
+    // 根据是否还有其他分类决定显示哪些按钮
+    const buttonsHTML = hasMoreCategories ? `
+      <button id="continueLearningBtn" class="btn" style="
         background: white;
         color: #059669;
         border: none;
@@ -553,29 +619,108 @@ export class RichModeHandler {
         cursor: pointer;
         font-size: 16px;
         font-weight: 600;
-        margin: 0 8px;
-      ">返回记忆训练</button>
+        margin-right: 12px;
+      ">继续学习</button>
+      <button id="returnToMemoryBtn" class="btn" style="
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: 2px solid white;
+        padding: 12px 24px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: 600;
+      ">返回主页</button>
+    ` : `
+      <button id="returnToMemoryBtn" class="btn" style="
+        background: white;
+        color: #059669;
+        border: none;
+        padding: 14px 32px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 18px;
+        font-weight: 600;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      ">🏠 返回主页</button>
+    `;
+
+    completeDiv.innerHTML = `
+      <div style="font-size: 3rem; margin-bottom: 16px;">${hasMoreCategories ? '🎉' : '🎊'}</div>
+      <h3 style="margin: 0 0 16px 0; font-size: 1.5rem;">${title}</h3>
+      <p style="margin: 0 0 24px 0; font-size: 1.1rem; line-height: 1.5;">${message}</p>
+      <p style="margin: 0 0 32px 0; font-size: 0.9rem; opacity: 0.9;">${subtitle}</p>
+      <div style="display: flex; gap: 12px; justify-content: center; margin-top: 16px;">
+        ${buttonsHTML}
+      </div>
     `;
 
     document.body.appendChild(completeDiv);
 
-    // 添加事件监听 - 3秒后自动关闭并返回
-    const btn = completeDiv.querySelector('.btn') as HTMLButtonElement;
-    if (btn) {
-      btn.addEventListener('click', () => {
+    // 添加事件监听器
+    const returnBtn = completeDiv.querySelector('#returnToMemoryBtn') as HTMLButtonElement;
+    const continueBtn = completeDiv.querySelector('#continueLearningBtn') as HTMLButtonElement;
+
+    if (returnBtn) {
+      returnBtn.addEventListener('click', () => {
         completeDiv.remove();
         // 触发返回记忆训练
         this.completeSession();
       });
     }
 
-    // 自动关闭
-    setTimeout(() => {
-      if (document.body.contains(completeDiv)) {
+    if (continueBtn) {
+      continueBtn.addEventListener('click', () => {
         completeDiv.remove();
-        this.completeSession();
-      }
-    }, 3000);
+        // 触发继续学习 - 清除当前会话并跳转到下一个分类
+        this.completeAndContinueToNext();
+      });
+    }
+
+    // 不自动关闭，等待用户选择
+  }
+
+  /**
+   * 完成整个分类
+   */
+  private completeCategory(): void {
+    // 标记整个分类完成
+    this.isCategoryCompleted = true;
+
+    // 提交所有正确连接的学习进度
+    this.correctConnections.forEach(countryCode => {
+      this.commitLearningProgress(countryCode);
+    });
+
+    // 显示完成消息
+    const results = this.validateConnections();
+    const correctCount = results.filter(r => r.isCorrect).length;
+    this.showCategoryCompleteMessage(correctCount, results.length);
+  }
+
+  /**
+   * 完成并继续到下一个分类
+   */
+  private completeAndContinueToNext(): void {
+    // 完成当前分类并开始下一个分类
+    this.destroy();
+
+    if (typeof window !== 'undefined' && (window as any).memoryModule) {
+      const memoryModule = (window as any).memoryModule;
+
+      setTimeout(() => {
+        if (memoryModule.showMemory && typeof memoryModule.showMemory === 'function') {
+          memoryModule.showMemory();
+
+          // 延迟一点时间后开始智能学习
+          setTimeout(() => {
+            if (memoryModule.startSmartLearning && typeof memoryModule.startSmartLearning === 'function') {
+              memoryModule.startSmartLearning();
+            }
+          }, 200);
+        }
+      }, 100);
+    }
   }
 
   /**
@@ -751,18 +896,41 @@ export class RichModeHandler {
    * 更新继续按钮状态
    */
   private updateContinueButton(): void {
-    const continueBtn = document.getElementById('continueGroupBtn');
+    const continueBtn = document.getElementById('continueGroupBtn') as HTMLButtonElement;
     if (continueBtn) {
       // 检查当前组是否完成所有连接
       const isCurrentGroupComplete = this.currentGroupCountries.length > 0 &&
                                   this.connections.size === this.currentGroupCountries.length;
 
       if (isCurrentGroupComplete) {
-        continueBtn.style.display = 'inline-block';
-        if (this.hasNextGroup()) {
-          continueBtn.textContent = `下一组 (${this.currentGroupIndex + 2}/${Math.ceil(this.allCountries.length / this.groupSize)})`;
+        // 额外检查连接是否全部正确
+        const results = this.validateConnections();
+        const isAllCorrect = results.every(result => result.isCorrect);
+        const correctCount = results.filter(r => r.isCorrect).length;
+        const totalCount = results.length;
+
+        if (isAllCorrect) {
+          continueBtn.style.display = 'inline-block';
+          continueBtn.disabled = false;
+          if (this.hasNextGroup()) {
+            continueBtn.textContent = `下一组 (${this.currentGroupIndex + 2}/${Math.ceil(this.allCountries.length / this.groupSize)})`;
+          } else {
+            continueBtn.textContent = '完成学习';
+          }
         } else {
-          continueBtn.textContent = '完成学习';
+          // 有错误连接，显示按钮但禁用，并给出更详细的信息
+          continueBtn.style.display = 'inline-block';
+          continueBtn.disabled = true;
+          continueBtn.textContent = `请修正错误连线 (正确: ${correctCount}/${totalCount})`;
+
+          // 在控制台输出调试信息，帮助诊断问题
+          console.log('🔍 连线验证结果:', {
+            total: totalCount,
+            correct: correctCount,
+            incorrect: totalCount - correctCount,
+            connections: Array.from(this.connections.entries()),
+            validationResults: results
+          });
         }
       } else {
         continueBtn.style.display = 'none';
@@ -813,6 +981,7 @@ export class RichModeHandler {
     this.stopTimer();
     this.connections.clear();
     this.selectedDescription = null;
+    this.selectedFlag = null; // 同时清除国旗选择状态
 
     // 如果未完成整个分类，清除学习进度（不保存）
     if (!this.isCategoryCompleted && this.correctConnections.size > 0) {
@@ -834,5 +1003,52 @@ export class RichModeHandler {
     if (completeBtn) {
       completeBtn.removeEventListener('click', () => this.completeSession());
     }
+  }
+
+  /**
+   * 播放连接成功的声音效果（可选功能）
+   */
+  private playConnectionSound(): void {
+    try {
+      // 创建简单的音效（可选）
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.frequency.setValueAtTime(800, audioContext.currentTime); // 频率
+      gainNode.gain.setValueAtTime(0.1, audioContext.currentTime); // 音量
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1); // 淡出
+
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.1);
+    } catch (error) {
+      // 如果浏览器不支持AudioContext或用户禁用了音频，静默失败
+      console.log('🔇 音效播放失败或被禁用:', error);
+    }
+  }
+
+  /**
+   * 检查是否还有其他未完成的分类
+   */
+  private checkIfHasMoreCategories(): boolean {
+    try {
+      if (typeof window !== 'undefined' && (window as any).memoryModule) {
+        const memoryModule = (window as any).memoryModule;
+
+        // 使用记忆模块的selectBestCategory方法来检查是否还有未完成的分类
+        if (memoryModule.selectBestCategory && typeof memoryModule.selectBestCategory === 'function') {
+          const nextCategory = memoryModule.selectBestCategory();
+          return nextCategory !== null;
+        }
+      }
+    } catch (error) {
+      console.error('❌ 检查分类进度失败:', error);
+    }
+
+    // 如果无法获取记忆模块信息，默认认为还有其他分类
+    return true;
   }
 }
