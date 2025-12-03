@@ -856,6 +856,21 @@ export class RichModeHandler {
   public render(): void {
     if (!this.container) return;
 
+    // 创建或获取连线画布
+    let canvasElement = this.container.querySelector('#connectionCanvas') as SVGElement;
+    if (!canvasElement) {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.id = 'connectionCanvas';
+      svg.style.position = 'absolute';
+      svg.style.top = '0';
+      svg.style.left = '0';
+      svg.style.width = '100%';
+      svg.style.height = '100%';
+      svg.style.pointerEvents = 'none';
+      svg.style.zIndex = '1';
+      this.container.appendChild(svg);
+    }
+
     const descriptionsPanel = this.container.querySelector('.descriptions-panel');
     const flagsPanel = this.container.querySelector('.flags-panel');
 
@@ -966,9 +981,9 @@ export class RichModeHandler {
     card.dataset.country = country.code;
 
     card.innerHTML = `
+      <div class="connection-point"></div>
       <img src="${getFlagImageUrl(country.code)}" alt="${country.nameCN}"
            onerror="this.src='https://via.placeholder.com/80x60/f0f0f0/999?text=FLAG'">
-      <div class="connection-point"></div>
     `;
 
     return card;
