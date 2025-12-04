@@ -1,5 +1,5 @@
 /**
- * 座位排位相关类型定义
+ * 国际场合席位安排相关类型定义
  */
 
 import type { Country } from './index';
@@ -38,7 +38,7 @@ export interface SeatingConfig {
   priorityOrg?: string[];
 }
 
-/** 座位排位结果 */
+/** 席位安排结果 */
 export interface SeatingArrangement {
   /** 排序后的国家列表 */
   countries: Country[];

@@ -1,6 +1,6 @@
 /**
- * 座位排位模块
- * 提供国际场合的国旗座位排位功能
+ * 国际场合席位安排模块
+ * 提供国际场合的国旗席位安排功能
  */
 
 import html2canvas from 'html2canvas';
@@ -251,6 +251,9 @@ function applyTemplate(template: SeatingTemplate): void {
     sourceSelect.value = template.dataSource;
   }
 
+  // 更新可选国家列表
+  updateAvailableCountries();
+
   // 更新排序规则
   currentConfig.rule = template.rule;
   const ruleSelect = document.getElementById('seating-rule-select') as HTMLSelectElement;
@@ -288,8 +291,202 @@ function applyTemplate(template: SeatingTemplate): void {
     selectedCard.classList.add('active');
   }
 
-  // 显示成功消息
-  showMessage(`已应用模板：${template.name}`, 'success');
+  // 跳转到国家选择页面
+  showCountrySelectionPage();
+}
+
+/**
+ * 显示国家选择页面
+ */
+function showCountrySelectionPage(): void {
+  const detailSection = document.getElementById('seating-detail-section');
+  const selectionPage = document.getElementById('country-selection-page');
+
+  if (detailSection) detailSection.style.display = 'none';
+  if (selectionPage) selectionPage.style.display = 'block';
+
+  // 更新数据源名称显示
+  const sourceNameEl = document.getElementById('selection-source-name');
+  if (sourceNameEl) {
+    const sourceNames: Record<string, string> = {
+      un: '联合国会员国',
+      g20: '二十国集团',
+      euu: '欧洲联盟',
+      auu: '非洲联盟',
+      china_diplomatic: '与中国建交国家',
+      asiasim: '亚洲仿真联盟',
+      current: '当前浏览筛选结果',
+    };
+    sourceNameEl.textContent = sourceNames[currentDataSource] || currentDataSource;
+  }
+
+  // 渲染选择页面的国家列表
+  renderSelectionPageCountries();
+
+  // 更新计数显示
+  updateSelectionCount();
+}
+
+/**
+ * 隐藏国家选择页面，返回配置页面
+ */
+function hideCountrySelectionPage(): void {
+  const detailSection = document.getElementById('seating-detail-section');
+  const selectionPage = document.getElementById('country-selection-page');
+
+  if (selectionPage) selectionPage.style.display = 'none';
+  if (detailSection) detailSection.style.display = 'block';
+}
+
+/**
+ * 渲染选择页面的国家列表
+ */
+function renderSelectionPageCountries(): void {
+  const container = document.getElementById('country-selection-grid');
+  if (!container) return;
+
+  container.innerHTML = '';
+
+  availableCountries.forEach((country) => {
+    const item = document.createElement('div');
+    item.className = 'country-select-item';
+    item.dataset.countryCode = country.code;
+
+    if (selectedCountryCodes.has(country.code)) {
+      item.classList.add('selected');
+    }
+
+    const flag = document.createElement('img');
+    flag.src = getFlagImageUrl(country.code);
+    flag.alt = country.nameCN;
+    flag.className = 'country-select-flag';
+
+    const name = document.createElement('div');
+    name.className = 'country-select-name';
+    name.textContent = country.nameCN;
+
+    item.appendChild(flag);
+    item.appendChild(name);
+
+    // 点击切换选中状态
+    item.addEventListener('click', () => handleSelectionPageCountryToggle(country.code));
+
+    container.appendChild(item);
+  });
+
+  // 更新总数显示
+  const totalDisplay = document.getElementById('selection-total-display');
+  if (totalDisplay) {
+    totalDisplay.textContent = String(availableCountries.length);
+  }
+}
+
+/**
+ * 处理选择页面的国家切换
+ */
+function handleSelectionPageCountryToggle(countryCode: string): void {
+  if (selectedCountryCodes.has(countryCode)) {
+    selectedCountryCodes.delete(countryCode);
+  } else {
+    selectedCountryCodes.add(countryCode);
+  }
+
+  // 更新UI
+  const item = document.querySelector(
+    `#country-selection-grid [data-country-code="${countryCode}"]`
+  );
+  if (item) {
+    item.classList.toggle('selected');
+  }
+
+  updateSelectionCount();
+}
+
+/**
+ * 更新选择计数显示
+ */
+function updateSelectionCount(): void {
+  // 更新原配置页面的计数
+  const countEl = document.getElementById('selected-count');
+  if (countEl) {
+    countEl.textContent = `(已选 ${selectedCountryCodes.size} 个)`;
+  }
+
+  // 更新选择页面的计数
+  const displayEl = document.getElementById('selection-count-display');
+  if (displayEl) {
+    displayEl.textContent = String(selectedCountryCodes.size);
+  }
+}
+
+/**
+ * 完成国家选择，返回配置页面
+ */
+function finishCountrySelection(): void {
+  if (selectedCountryCodes.size === 0) {
+    showMessage('请至少选择一个国家', 'warning');
+    return;
+  }
+
+  hideCountrySelectionPage();
+  showMessage(`已选择 ${selectedCountryCodes.size} 个国家，可以生成排位方案`, 'success');
+}
+
+/**
+ * 选择页面全选
+ */
+function selectAllInSelectionPage(): void {
+  selectedCountryCodes = new Set(availableCountries.map((c) => c.code));
+
+  // 更新UI
+  document.querySelectorAll('#country-selection-grid .country-select-item').forEach((item) => {
+    item.classList.add('selected');
+  });
+
+  updateSelectionCount();
+}
+
+/**
+ * 选择页面清空
+ */
+function deselectAllInSelectionPage(): void {
+  selectedCountryCodes.clear();
+
+  // 更新UI
+  document.querySelectorAll('#country-selection-grid .country-select-item').forEach((item) => {
+    item.classList.remove('selected');
+  });
+
+  updateSelectionCount();
+}
+
+/**
+ * 处理选择页面搜索
+ */
+function handleSelectionPageSearch(e: Event): void {
+  const input = e.target as HTMLInputElement;
+  const searchTerm = input.value.toLowerCase().trim();
+
+  const items = document.querySelectorAll('#country-selection-grid .country-select-item');
+
+  items.forEach((item) => {
+    const countryCode = item.getAttribute('data-country-code');
+    if (!countryCode) return;
+
+    const country = availableCountries.find((c) => c.code === countryCode);
+    if (!country) return;
+
+    // 搜索匹配：中文名、英文名、国家代码
+    const matchesCN = country.nameCN.toLowerCase().includes(searchTerm);
+    const matchesEN = country.nameEN.toLowerCase().includes(searchTerm);
+    const matchesCode = country.code.toLowerCase().includes(searchTerm);
+
+    if (searchTerm === '' || matchesCN || matchesEN || matchesCode) {
+      (item as HTMLElement).style.display = 'flex';
+    } else {
+      (item as HTMLElement).style.display = 'none';
+    }
+  });
 }
 
 /**
@@ -375,6 +572,22 @@ function setupEventListeners(): void {
   if (showNamesCheckbox) {
     showNamesCheckbox.addEventListener('change', toggleNamesDisplay);
   }
+
+  // 国家选择页面相关按钮
+  const backToConfigBtn = document.getElementById('backToConfigBtn');
+  const finishSelectionBtn = document.getElementById('finish-selection-btn');
+  const selectAllCountriesBtn = document.getElementById('select-all-countries-btn');
+  const deselectAllCountriesBtn = document.getElementById('deselect-all-countries-btn');
+  const selectionSearchInput = document.getElementById(
+    'country-selection-search-input'
+  ) as HTMLInputElement;
+
+  if (backToConfigBtn) backToConfigBtn.addEventListener('click', hideCountrySelectionPage);
+  if (finishSelectionBtn) finishSelectionBtn.addEventListener('click', finishCountrySelection);
+  if (selectAllCountriesBtn) selectAllCountriesBtn.addEventListener('click', selectAllInSelectionPage);
+  if (deselectAllCountriesBtn)
+    deselectAllCountriesBtn.addEventListener('click', deselectAllInSelectionPage);
+  if (selectionSearchInput) selectionSearchInput.addEventListener('input', handleSelectionPageSearch);
 }
 
 /**
@@ -485,17 +698,77 @@ function toggleConfigOptions(): void {
 }
 
 /**
+ * 检查布局是否适合当前国家数量，并自动切换到更合适的布局
+ */
+function checkAndAdjustLayout(countryCount: number): boolean {
+  const recommendations: Record<LayoutType, { min: number; max: number; alternative?: LayoutType }> = {
+    linear: { min: 1, max: 30 },
+    'double-column': { min: 10, max: 60 },
+    circular: { min: 5, max: 50, alternative: 'grid' },
+    'u-shape': { min: 10, max: 80 },
+    grid: { min: 1, max: 500 },
+  };
+
+  const currentRec = recommendations[currentLayout];
+
+  // 检查当前布局是否适合
+  if (countryCount >= currentRec.min && countryCount <= currentRec.max) {
+    return false; // 不需要切换
+  }
+
+  // 需要切换布局
+  let newLayout: LayoutType;
+
+  if (countryCount <= 5) {
+    newLayout = 'linear';
+  } else if (countryCount <= 30) {
+    newLayout = 'circular';
+  } else if (countryCount <= 60) {
+    newLayout = 'double-column';
+  } else if (countryCount <= 80) {
+    newLayout = 'u-shape';
+  } else {
+    newLayout = 'grid';
+  }
+
+  // 更新布局
+  const oldLayout = getLayoutDescription(currentLayout);
+  currentLayout = newLayout;
+
+  // 更新按钮状态
+  document.querySelectorAll('.layout-btn').forEach((btn) => {
+    btn.classList.remove('active');
+    if (btn.getAttribute('data-layout') === newLayout) {
+      btn.classList.add('active');
+    }
+  });
+
+  // 显示提示
+  showMessage(
+    `已自动从「${oldLayout}」切换到「${getLayoutDescription(newLayout)}」，更适合 ${countryCount} 个国家`,
+    'info'
+  );
+
+  return true; // 已切换
+}
+
+/**
  * 生成座位排位
  */
 function generateSeating(): void {
   // 检查是否有选中的国家
   if (selectedCountryCodes.size === 0) {
-    showMessage('请至少选择一个国家参与排位', 'warning');
+    showMessage('请先选择参与排位的国家', 'info');
+    // 自动跳转到国家选择页面
+    showCountrySelectionPage();
     return;
   }
 
   // 使用选中的国家
   const countries = availableCountries.filter((c) => selectedCountryCodes.has(c.code));
+
+  // 检查并自动调整布局
+  checkAndAdjustLayout(countries.length);
 
   // 执行排序
   const sortedCountries = applySortingRule([...countries], currentConfig);
@@ -1068,7 +1341,7 @@ function exportSeating(format: 'text' | 'image'): void {
 function exportAsText(): void {
   if (!currentArrangement) return;
 
-  let text = `座位排位结果\n`;
+  let text = `国际场合席位安排结果\n`;
   text += `规则：${currentArrangement.ruleDescription}\n`;
   text += `生成时间：${currentArrangement.generatedAt.toLocaleString('zh-CN')}\n`;
   text += `共 ${currentArrangement.countries.length} 个国家/地区\n\n`;
@@ -1082,7 +1355,7 @@ function exportAsText(): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `座位排位_${new Date().getTime()}.txt`;
+  a.download = `席位安排_${new Date().getTime()}.txt`;
   a.click();
   URL.revokeObjectURL(url);
 
@@ -1124,7 +1397,7 @@ async function exportAsImage(): Promise<void> {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `座位排位_${new Date().getTime()}.png`;
+      a.download = `席位安排_${new Date().getTime()}.png`;
       a.click();
       URL.revokeObjectURL(url);
 
@@ -1197,8 +1470,8 @@ function updateAvailableCountries(): void {
     }
   }
 
-  // 默认全选
-  selectedCountryCodes = new Set(availableCountries.map((c) => c.code));
+  // 默认为未选状态
+  selectedCountryCodes.clear();
   updateSelectedCount();
 }
 
@@ -1399,7 +1672,7 @@ function renderStatistics(countries: Country[]): void {
 
   // 生成统计HTML
   const statsHTML = `
-    <h4>📊 排位统计</h4>
+    <h4>📊 席位统计</h4>
     <div class="stats-grid">
       <div class="stat-item">
         <div class="stat-label">总座位数</div>

@@ -464,8 +464,8 @@
             <!-- 座位排位工具卡片 -->
             <div class="tool-card" id="seating-tool-card">
               <div class="tool-icon">🪑</div>
-              <h3>国旗座位排位</h3>
-              <p>为国际场合提供专业的国旗座位排位方案，支持多种排序规则和布局</p>
+              <h3>国际场合席位安排</h3>
+              <p>为国际场合提供专业的国旗席位安排方案，支持多种排序规则和布局</p>
             </div>
 
             <!-- 更多工具卡片（开发中） -->
@@ -574,8 +574,8 @@
 
           <!-- 座位排位工具 -->
           <div class="seating-tool">
-            <h3 class="seating-title">🪑 国旗座位排位</h3>
-            <p class="seating-subtitle">为国际场合提供专业的国旗座位排位方案</p>
+            <h3 class="seating-title">🪑 国际场合席位安排</h3>
+            <p class="seating-subtitle">为国际场合提供专业的国旗席位安排方案</p>
 
             <!-- 快速模板 -->
             <div class="seating-templates">
@@ -756,6 +756,70 @@
                 </div>
               </div>
               <div id="seating-display-container"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 国家选择独立页面 -->
+      <div id="country-selection-page" style="display: none">
+        <div class="tools-container">
+          <!-- 返回按钮 -->
+          <button class="back-to-tools-btn" id="backToConfigBtn">
+            <span class="btn-icon">←</span>
+            <span class="btn-text">返回配置</span>
+          </button>
+
+          <!-- 国家选择页面内容 -->
+          <div class="country-selection-container">
+            <div class="selection-header">
+              <h2>🌍 选择参与排位的国家</h2>
+              <p class="selection-subtitle">
+                数据源：<span id="selection-source-name" class="highlight-text">联合国会员国</span>
+              </p>
+              <p class="selection-hint">
+                点击国旗选择或取消选择，已选择的国家会高亮显示
+              </p>
+            </div>
+
+            <!-- 操作工具栏 -->
+            <div class="selection-toolbar">
+              <div class="selection-count">
+                <span class="count-label">已选择：</span>
+                <span id="selection-count-display" class="count-number">0</span>
+                <span class="count-total">/ <span id="selection-total-display">0</span></span>
+              </div>
+
+              <div class="selection-actions">
+                <button id="select-all-countries-btn" class="btn btn-secondary">
+                  ✓ 全选
+                </button>
+                <button id="deselect-all-countries-btn" class="btn btn-secondary">
+                  ✗ 清空
+                </button>
+              </div>
+            </div>
+
+            <!-- 搜索框 -->
+            <div class="selection-search-box">
+              <input
+                type="text"
+                id="country-selection-search-input"
+                class="selection-search-input"
+                placeholder="🔍 搜索国家名称（中文/英文/代码）..."
+              />
+            </div>
+
+            <!-- 国家网格 -->
+            <div id="country-selection-grid" class="country-selection-grid">
+              <!-- 国家选择项将在这里动态生成 -->
+            </div>
+
+            <!-- 完成按钮 -->
+            <div class="selection-footer">
+              <button id="finish-selection-btn" class="btn btn-primary btn-large">
+                完成选择并继续配置
+              </button>
             </div>
           </div>
         </div>
